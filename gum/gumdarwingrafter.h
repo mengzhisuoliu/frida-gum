@@ -15,8 +15,8 @@ G_BEGIN_DECLS
 G_DECLARE_FINAL_TYPE (GumDarwinGrafter, gum_darwin_grafter, GUM, DARWIN_GRAFTER,
     GObject)
 
-GUM_API GumDarwinGrafter * gum_darwin_grafter_new_from_file (const gchar * path,
-    GError ** error);
+GUM_API GumDarwinGrafter * gum_darwin_grafter_new_from_file (
+    const gchar * path);
 
 GUM_API gboolean gum_darwin_grafter_graft (GumDarwinGrafter * self,
     GError ** error);

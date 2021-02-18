@@ -14,9 +14,7 @@ main (int argc,
   GumDarwinGrafter * grafter;
   GError * error;
 
-#ifdef HAVE_FRIDA_GLIB
-  glib_init ();
-#endif
+  gum_init ();
 
   if (argc != 2)
   {
@@ -26,19 +24,14 @@ main (int argc,
 
   path = argv[1];
 
-  error = NULL;
-  grafter = gum_darwin_grafter_new_from_file (path, &error);
-  if (error != NULL)
-  {
-    g_printerr ("%s\n", error->message);
-    return 2;
-  }
+  grafter = gum_darwin_grafter_new_from_file (path);
 
+  error = NULL;
   gum_darwin_grafter_graft (grafter, &error);
   if (error != NULL)
   {
     g_printerr ("%s\n", error->message);
-    return 3;
+    return 2;
   }
 
   return 0;
