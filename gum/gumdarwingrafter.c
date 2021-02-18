@@ -260,6 +260,7 @@ gum_darwin_grafter_graft (GumDarwinGrafter * self,
     command = (guint8 *) command + lc->cmdsize;
   }
 
+  /* TODO: move these just before __LINKEDIT */
   seg = (GumSegmentCommand64 *) ((guint8 *) commands + size_of_load_commands);
   seg->cmd = GUM_LC_SEGMENT_64;
   seg->cmdsize = sizeof (GumSegmentCommand64) + sizeof (GumSection64);
