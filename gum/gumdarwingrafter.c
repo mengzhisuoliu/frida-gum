@@ -130,7 +130,6 @@ gum_darwin_grafter_graft (GumDarwinGrafter * self,
   guint32 num_load_commands, size_of_load_commands;
   GumMachHeader64 header;
   gpointer commands = NULL;
-  gboolean did_shift_linkedit;
   gpointer command;
   GumSegmentCommand64 * seg;
   GumSection64 * sect;
@@ -187,38 +186,79 @@ gum_darwin_grafter_graft (GumDarwinGrafter * self,
   fwrite (&header, sizeof (header), 1, output);
 
   commands = g_memdup ((const GumMachHeader64 *) input + 1, header.sizeofcmds);
-  for (command = commands, i = 0, did_shift_linkedit = FALSE;
-      i != num_load_commands && !did_shift_linkedit;
-      i++)
+  for (command = commands, i = 0; i != num_load_commands; i++)
   {
     GumLoadCommand * lc = command;
 
-    if (lc->cmd == GUM_LC_SEGMENT_64)
-    {
-      GumSegmentCommand64 * sc = command;
+#define GUM_SHIFT(field) \
+    field += layout.linkedit_shift
+#define GUM_MAYBE_SHIFT(field) \
+    if (field != 0) \
+      field += layout.linkedit_shift
 
-      if (sc->fileoff == layout.linkedit_offset)
+    switch (lc->cmd)
+    {
+      case GUM_LC_SEGMENT_64:
       {
-        sc->vmaddr += layout.linkedit_shift;
-        sc->fileoff += layout.linkedit_shift;
-        did_shift_linkedit = TRUE;
+        GumSegmentCommand64 * sc = command;
+
+        if (sc->fileoff == layout.linkedit_offset)
+        {
+          GUM_SHIFT (sc->vmaddr);
+          GUM_SHIFT (sc->fileoff);
+        }
+
+        break;
       }
+      case GUM_LC_DYLD_INFO_ONLY:
+      {
+        GumDyldInfoCommand * ic = command;
+
+        GUM_MAYBE_SHIFT (ic->rebase_off);
+        GUM_MAYBE_SHIFT (ic->bind_off);
+        GUM_MAYBE_SHIFT (ic->weak_bind_off);
+        GUM_MAYBE_SHIFT (ic->lazy_bind_off);
+        GUM_MAYBE_SHIFT (ic->export_off);
+
+        break;
+      }
+      case GUM_LC_SYMTAB:
+      {
+        GumSymtabCommand * sc = command;
+
+        GUM_SHIFT (sc->symoff);
+        GUM_SHIFT (sc->stroff);
+
+        break;
+      }
+      case GUM_LC_DYSYMTAB:
+      {
+        GumDysymtabCommand * dc = command;
+
+        GUM_MAYBE_SHIFT (dc->tocoff);
+        GUM_MAYBE_SHIFT (dc->modtaboff);
+        GUM_MAYBE_SHIFT (dc->extrefsymoff);
+        GUM_SHIFT (dc->indirectsymoff); /* XXX: Is it always specified? */
+        GUM_MAYBE_SHIFT (dc->extreloff);
+        GUM_MAYBE_SHIFT (dc->locreloff);
+
+        break;
+      }
+      case GUM_LC_FUNCTION_STARTS:
+      case GUM_LC_DATA_IN_CODE:
+      {
+        GumLinkeditDataCommand * dc = command;
+
+        GUM_SHIFT (dc->dataoff);
+
+        break;
+      }
+      default:
+        break;
     }
 
     command = (guint8 *) command + lc->cmdsize;
   }
-  /*
-   * TODO: More fixups needed.
-   *
-   * Shift:
-   * - LC_DYLD_INFO_ONLY: .*_off
-   * - LC_SYMTAB: *off
-   * - LC_DYSYMTAB: *off
-   * - LC_FUNCTION_STARTS: dataoff
-   * - LC_DATA_IN_CODE: dataoff
-   */
-  if (!did_shift_linkedit)
-    goto invalid_data;
 
   seg = (GumSegmentCommand64 *) ((guint8 *) commands + size_of_load_commands);
   seg->cmd = GUM_LC_SEGMENT_64;
